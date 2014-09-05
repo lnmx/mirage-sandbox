@@ -13,7 +13,7 @@ module Main (C:CONSOLE) (S:Cohttp_lwt.Server) = struct
     let generate_stream push =
         for_lwt i = 0 to 10 do
             OS.Time.sleep 1.0 >>
-            return ( push (Some (Printf.sprintf "hello %d\r\n" i) ) )
+            return ( push (Some (Printf.sprintf "data: hello\r\ndata: %d\r\n\r\n" i) ) )
         done
     in
 
@@ -23,9 +23,9 @@ module Main (C:CONSOLE) (S:Cohttp_lwt.Server) = struct
 
     let serve_stream request body =
       let (stream, push) = Lwt_stream.create () in
-      let headers = Cohttp.Header.init () in
+      let headers = Cohttp.Header.init_with "Content-Type" "text/event-stream" in
       let body = Cohttp_lwt_body.of_stream stream in
-      let resp = Cohttp.Response.make ~status:`OK () in
+      let resp = Cohttp.Response.make ~status:`OK ~headers () in
       let foo = Lwt.async (fun () -> generate_stream push >> close_stream push) in
       return (resp, body)
     in
