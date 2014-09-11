@@ -1,6 +1,7 @@
 open Lwt
 open Printf
 open V1_LWT
+open Sse
 
 module Main (C:CONSOLE) (S:Cohttp_lwt.Server) = struct
 
@@ -10,24 +11,16 @@ module Main (C:CONSOLE) (S:Cohttp_lwt.Server) = struct
       S.respond_string ~status:`OK ~body:"hello, world!\r\n" ()
     in
 
-    let generate_stream push =
-        for_lwt i = 0 to 10 do
-            OS.Time.sleep 1.0 >>
-            return ( push (Some (Printf.sprintf "data: hello\r\ndata: %d\r\n\r\n" i) ) )
-        done
-    in
-
-    let close_stream push =
-        return ( push None )
+    let streamer client =
+      OS.Time.sleep 1.0 >>
+      Sse.send client "hello!\r\n\r\n" >>
+      OS.Time.sleep 3.0 >>
+      Sse.send client "goodbye!\r\n\r\n" >>
+      Sse.close client
     in
 
     let serve_stream request body =
-      let (stream, push) = Lwt_stream.create () in
-      let headers = Cohttp.Header.init_with "Content-Type" "text/event-stream" in
-      let body = Cohttp_lwt_body.of_stream stream in
-      let resp = Cohttp.Response.make ~status:`OK ~headers () in
-      let foo = Lwt.async (fun () -> generate_stream push >> close_stream push) in
-      return (resp, body)
+      Sse.start streamer request body
     in
 
     let handler request body =
