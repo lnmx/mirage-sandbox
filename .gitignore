@@ -7,3 +7,15 @@
 *.cmx
 *.cmxs
 *.cmxa
+
+*/_build
+*/log
+*/*.xe
+*/*.xl
+*/*.native
+*/*_libvirt.xml
+*/Makefile
+*/mir-*
+*/static*.ml
+*/static*.mli
+*/main.ml

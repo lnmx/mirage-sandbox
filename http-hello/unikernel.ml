@@ -26,7 +26,7 @@ module Main (C:CONSOLE) (S:Cohttp_lwt.Server) = struct
       handler request body
     in
 
-    let conn_closed conn_id () =
+    let conn_closed (_, conn_id) () =
       let cid = Cohttp.Connection.to_string conn_id in
       C.log c (Printf.sprintf "conn %s closed" cid)
     in
