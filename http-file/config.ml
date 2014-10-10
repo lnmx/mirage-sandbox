@@ -20,7 +20,7 @@ let net =
 
 let net_addr = [Ipaddr.V4.any]
 
-let net_port = 
+let http_port = 
   match get_mode() with
   | `Xen  -> 80
   | `Unix -> 8080
@@ -31,12 +31,16 @@ let stack console =
   | `Socket -> socket_stackv4 console net_addr
 
 let server =
-  http_server net_port (stack default_console)
+  conduit_direct (stack default_console)
+
+let http_server =
+    let mode = `TCP (`Port http_port) in
+    http_server mode server
 
 let main =
   foreign "Unikernel.Main" (console @-> kv_ro @-> http @-> job)
 
 let () =
   register "http" [
-    main $ default_console $ fs $ server
+    main $ default_console $ fs $ http_server
   ]
