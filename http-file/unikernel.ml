@@ -20,6 +20,7 @@ module Main (C:CONSOLE) (FS:KV_RO) (S:Cohttp_lwt.Server) = struct
     in
 
     let serve_file_buffered path =
+      C.log c (Printf.sprintf "serve_file buffered %s" path);
       read_file path
       >>= fun body ->
       S.respond_string ~status:`OK ~body ()
@@ -47,6 +48,7 @@ module Main (C:CONSOLE) (FS:KV_RO) (S:Cohttp_lwt.Server) = struct
     in
 
     let serve_file_stream_push path =
+      C.log c (Printf.sprintf "serve_file stream_push %s" path);
       FS.size fs path
       >>= function
       | `Error (FS.Unknown_key _) -> fail (Failure ("read " ^ path))
@@ -70,6 +72,7 @@ module Main (C:CONSOLE) (FS:KV_RO) (S:Cohttp_lwt.Server) = struct
     in
 
     let serve_file_stream_pull path =
+      C.log c (Printf.sprintf "serve_file stream_pull %s" path);
       let step = 4096 in
       let stream = Lwt_stream.from (pull_reader path step) in
       let body = Cohttp_lwt_body.of_stream stream in
@@ -77,18 +80,19 @@ module Main (C:CONSOLE) (FS:KV_RO) (S:Cohttp_lwt.Server) = struct
       return (resp, body)
     in
 
-    let serve_file path =
-        serve_file_stream_push path
-        (*
-        serve_file_buffered path
-        serve_file_stream_pull path
-        *)
+    let serve_file mode path =
+      match mode with
+        | Some "push" -> serve_file_stream_push path
+        | Some "pull" -> serve_file_stream_pull path
+        | Some "buff" -> serve_file_buffered path
+        | _ -> serve_file_buffered path
     in
 
     let handler request body =
       try_lwt
         let path = Uri.path (S.Request.uri request) in
-        serve_file path
+        let mode = Uri.get_query_param (S.Request.uri request) "mode" in
+        serve_file mode path
       with exn ->
         S.respond_not_found ()
     in
