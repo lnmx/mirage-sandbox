@@ -1,4 +1,5 @@
 [
+{"name":"process_name","ph":"M","ts":0,"pid":1,"args":{"name":"foo"}},
 {"name":"process_name","ph":"M","ts":0,"pid":1,"args":{"name":"my-process"}},
 {"name":"process_labels","ph":"M","ts":0,"pid":1,"args":{"labels":"my process label"}},
 {"name":"process_sort_index","ph":"M","ts":0,"pid":1,"args":{"sort_index":1}},

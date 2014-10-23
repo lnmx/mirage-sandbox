@@ -87,5 +87,8 @@ let example =
         Tcr_event.object_destroyed ~pid:(Some 1) ~tid:(Some 9) 350000 "MyStruct" "o1" ;
     ]
 
+
 let () =
-    Tcr_event.dump example
+    let buf = Tcr_buf.create in
+    List.iter example ~f:(fun e -> Tcr_buf.push buf e);
+    Tcr_buf.dump buf (fun ln -> printf "%s\n" ln);

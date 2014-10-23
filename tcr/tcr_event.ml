@@ -1,5 +1,5 @@
 
-open Core.Std
+open Printf
 
 type argument =
     [ `NullArg
@@ -35,7 +35,7 @@ type event = {
     (* duration in microseconds, for phase=Complete *)
     dur : int option;
 
-    (* *)
+    (* async/flow/object id *)
     id : string option;
 
     (* arguments *)
@@ -79,7 +79,7 @@ type metrics =
     metric list
 
 let metrics_to_args m =
-    `ObjectArg (List.map ~f:(fun (k,v) -> (k, `FloatArg v)) m) 
+    `ObjectArg (List.map (fun (k,v) -> (k, `FloatArg v)) m) 
 
 let counter ?(cat=None) ?(pid=None) ?(tid=None) ts name (m:metrics) =
     let args = metrics_to_args m in
@@ -89,7 +89,7 @@ let process_name pid name =
     { default with name = "process_name"; ph = "M"; pid = (Some pid); args = `ObjectArg [ ("name", `StringArg name) ] }
 
 let process_sort pid sort =
-    { default with name = "process_sort_index"; ph = "M"; pid = (Some pid); args = `ObjectArg [ ("sort_index", `FloatArg (Float.of_int sort)) ] }
+    { default with name = "process_sort_index"; ph = "M"; pid = (Some pid); args = `ObjectArg [ ("sort_index", `FloatArg (float_of_int sort)) ] }
 
 let process_labels pid labels =
     { default with name = "process_labels"; ph = "M"; pid = (Some pid); args = `ObjectArg [ ("labels", `StringArg labels) ] }
@@ -98,7 +98,7 @@ let thread_name pid tid name =
     { default with name = "thread_name"; ph = "M"; pid = (Some pid); tid = (Some tid); args = `ObjectArg [ ("name", `StringArg name) ] }
 
 let thread_sort pid tid sort =
-    { default with name = "thread_sort_index"; ph = "M"; pid = (Some pid); tid = (Some tid); args = `ObjectArg [ ("sort_index", `FloatArg (Float.of_int sort)) ] }
+    { default with name = "thread_sort_index"; ph = "M"; pid = (Some pid); tid = (Some tid); args = `ObjectArg [ ("sort_index", `FloatArg (float_of_int sort)) ] }
 
 let instant ?(cat=None) ?(pid=None) ?(tid=None) ts name scope =
     { default with name; cat; ph = "I"; ts; pid; tid; s = (Some scope) }
@@ -143,7 +143,7 @@ let to_json_optional name value =
 let to_json_optional_int name value = 
     let open Ezjsonm in
     match value with
-    | (Some v) -> [ (name, `Float (Float.of_int v)) ]
+    | (Some v) -> [ (name, `Float (float_of_int v)) ]
     | None -> []
 
 let rec to_json_arg a = 
@@ -153,10 +153,10 @@ let rec to_json_arg a =
     | `NullArg -> `Null
     | `BoolArg v -> `Bool v
     | `FloatArg v -> `Float v
-    | `IntArg v -> `Float (Float.of_int v)
+    | `IntArg v -> `Float (float_of_int v)
     | `StringArg v -> `String v
-    | `ArrayArg v -> `A (List.map ~f:to_json_arg v)
-    | `ObjectArg v -> `O (List.map ~f:enc_kv v)
+    | `ArrayArg v -> `A (List.map to_json_arg v)
+    | `ObjectArg v -> `O (List.map enc_kv v)
 
 let to_json_args name a =
     let open Ezjsonm in
@@ -170,7 +170,7 @@ let to_json_data e =
     let name = [ ( "name", `String e.name ) ] in
     let cat = to_json_optional "cat" e.cat in 
     let ph = [ ( "ph", `String e.ph ) ] in
-    let ts = [ ( "ts", `Float (Float.of_int e.ts) ) ] in
+    let ts = [ ( "ts", `Float (float_of_int e.ts) ) ] in
     let pid = to_json_optional_int "pid" e.pid in
     let tid = to_json_optional_int "tid" e.tid in
     let s = to_json_optional "s" e.s in
@@ -182,8 +182,8 @@ let to_json_data e =
 
 let to_json e =
     let open Ezjsonm in
-    Ezjsonm.to_string ~minify:true (to_json_data e) ^ ",\n"
+    Ezjsonm.to_string ~minify:true (to_json_data e) ^ ","
 
 let dump ?(printer=(fun ln -> printf "%s" ln)) events =
     printer "[\n";
-    List.iter events ~f:(fun e -> printer (to_json e))
+    List.iter (fun e -> printer (to_json e)) events
