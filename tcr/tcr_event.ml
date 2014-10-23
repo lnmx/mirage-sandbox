@@ -126,7 +126,7 @@ let merge_args a _ = a
 let object_ref key id =
     `ObjectArg [ (key, `ObjectArg [ ("id_ref", `StringArg id) ] ) ]
 
-let with_object_ref event (key:string) (id:string) =
+let with_object_ref (key:string) (id:string) event =
     let oref = object_ref key id in
     let oarg = merge_args oref event.args in
     { event with args = oarg }

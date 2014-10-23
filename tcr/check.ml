@@ -77,9 +77,9 @@ let example =
         Tcr_event.dur_complete ~pid:(Some 1) ~tid:(Some 9) 10000 "setup" 2000 ;
         Tcr_event.object_created ~pid:(Some 1) ~tid:(Some 9) 70000 "MyObject" "o1" ;
         Tcr_event.object_snapshot ~pid:(Some 1) ~tid:(Some 9) 80000 "MyObject" "o1" (`ObjectArg [ ("stuff", `StringArg "junk" ) ] ) ;
-        Tcr_event.with_object_ref (Tcr_event.dur_complete ~pid:(Some 1) ~tid:(Some 9) 85000 "frob" 35000) "MyObject" "o1" ;
+        Tcr_event.dur_complete ~pid:(Some 1) ~tid:(Some 9) 85000 "frob" 35000 |> Tcr_event.with_object_ref "MyObject" "o1" ;
         Tcr_event.object_snapshot ~pid:(Some 1) ~tid:(Some 9) 230000 "MyObject" "o1" (`ObjectArg [ ("stuff", `StringArg "blah" ) ] ) ;
-        Tcr_event.with_object_ref (Tcr_event.dur_complete ~pid:(Some 1) ~tid:(Some 9) 260000 "frob" 35000) "MyObject" "o1" ;
+        Tcr_event.dur_complete ~pid:(Some 1) ~tid:(Some 9) 260000 "frob" 35000 |> Tcr_event.with_object_ref "MyObject" "o1" ;
         Tcr_event.object_destroyed ~pid:(Some 1) ~tid:(Some 9) 270000 "MyObject" "o1" ;
         Tcr_event.object_created ~pid:(Some 1) ~tid:(Some 9) 290000 "MyStruct" "o1" ;
         Tcr_event.object_snapshot ~pid:(Some 1) ~tid:(Some 9) 290000 "MyStruct" "o1" (`ObjectArg [ ("ref", `StringArg "foo" ) ] ) ;
