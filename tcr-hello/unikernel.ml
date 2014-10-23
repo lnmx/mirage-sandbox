@@ -17,16 +17,8 @@ module Main (C:CONSOLE) (CLK: V1.CLOCK) (S:Cohttp_lwt.Server) = struct
       us
     in
 
-    let pr line =
-      C.log c line
-    in
-
     let buf = 
       Tcr_buf.create
-    in
-
-    let dump () =
-      Tcr_buf.dump buf pr
     in
 
     let handler request body =
@@ -45,16 +37,37 @@ module Main (C:CONSOLE) (CLK: V1.CLOCK) (S:Cohttp_lwt.Server) = struct
       return out
     in
 
+    let dump_writeln push ln =
+      C.log c (Printf.sprintf "writeln %s" ln);
+      push (Some (ln ^ "\n"))
+    in
+
+    let dump_writer push =
+      C.log c "dump writer";
+      Tcr_buf.dump buf (fun ln -> dump_writeln push ln);
+      push None;
+      return ()
+    in
+
+    let start_dump_writer push =
+      Lwt.async (fun () -> dump_writer push)
+    in
+
     let dump_handler request body =
-      dump ();
-      S.respond_string ~status:`OK ~body:"dumped!\n" ()
+      C.log c "send trace";
+      let (stream, push) = Lwt_stream.create () in
+      let body = Cohttp_lwt_body.of_stream stream in
+      let resp = Cohttp.Response.make ~status:`OK () in
+      lwt out = dump_writer push in
+      (*let _ = start_dump_writer push in*)
+      return (resp, body)
     in
 
     (* HTTP callback *)
     let callback conn_id request body =
       let path = Uri.path (S.Request.uri request) in
       match path with
-      | "/dump" -> dump_handler request body
+      | "/test.trace" -> dump_handler request body
       | _ -> trace_handler request body
     in
 
