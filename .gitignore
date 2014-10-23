@@ -19,3 +19,5 @@
 */static*.ml
 */static*.mli
 */main.ml
+*/*.byte
+*/*.native
