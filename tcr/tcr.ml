@@ -135,6 +135,9 @@ module Log = struct
     let resume () =
         !event_log.enabled <- true
 
+    let reset () =
+        start ~size:(Array.length !event_log.log)
+
     let step log =
         let next = log.head + 1 in
         let next =
@@ -243,6 +246,7 @@ end
 type event = Event.t
 
 let start = Log.start
+let reset = Log.reset
 let pause = Log.pause
 let resume = Log.resume
 let log_begin = Log.log_begin 
@@ -264,6 +268,7 @@ let thread_meta = Log.thread_meta
 let log_counter = Log.log_counter
 let log_counters = Log.log_counters
 
+(*
 let () =
     let open Printf in
     let open Unix in
@@ -278,3 +283,4 @@ let () =
         log_end "stuff" 1 1
     done;
     output_json (fun line -> Printf.printf "%s" line)
+*)

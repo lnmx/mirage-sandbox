@@ -4,6 +4,7 @@
 val start : size:int -> unit
 val pause : unit -> unit
 val resume : unit -> unit
+val reset : unit -> unit
 
 val log_begin : string -> int -> int -> unit
 val log_end : string -> int -> int -> unit
