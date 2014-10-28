@@ -10,7 +10,7 @@ module Main (C:CONSOLE) (CLK: V1.CLOCK) (S:Cohttp_lwt.Server) = struct
   let gc_pid = 1
   let my_pid = 2
 
-  let log_gc () =
+  let log_gc_data () =
     let stat = Gc.stat () in
       Tcr.log_counters "gc memory" gc_pid [
         ("free_words", (float_of_int stat.Gc.free_words) ) ;
@@ -22,13 +22,22 @@ module Main (C:CONSOLE) (CLK: V1.CLOCK) (S:Cohttp_lwt.Server) = struct
         ("compactions", (float_of_int stat.Gc.compactions) ) 
       ]
 
-  let trace_setup () =
+  let log_gc_event () =
+    Tcr.log_instant_global "gc collection";
+    log_gc_data ()
+
+  let rec gc_logger () =
+    lwt _ = OS.Time.sleep 1.0 in
+    log_gc_data ();
+    gc_logger ()
+
+  let log_setup () =
     Tcr.reset();
     Tcr.process_meta gc_pid "gc" "" 1;
     Tcr.thread_meta gc_pid gc_pid "gc" 1;
     Tcr.process_meta my_pid "unikernel" "" 1;
     Tcr.thread_meta my_pid my_pid "main" 1;
-    log_gc()
+    log_gc_data ()
 
   let start c clock http =
 
@@ -48,9 +57,9 @@ module Main (C:CONSOLE) (CLK: V1.CLOCK) (S:Cohttp_lwt.Server) = struct
     in
 
     let trace_handler request body =
-      Tcr.log_begin "request" 1 1;
+      Tcr.log_begin "request" my_pid 1;
       lwt out = handler request body in
-      Tcr.log_end "request" 1 1;
+      Tcr.log_end "request" my_pid 1;
       return out
     in
 
@@ -58,7 +67,7 @@ module Main (C:CONSOLE) (CLK: V1.CLOCK) (S:Cohttp_lwt.Server) = struct
       Tcr.pause ();
       Tcr.output_json (fun ln -> push (Some ln));
       push None;
-      trace_setup ();
+      log_setup ();
       return ()
     in
 
@@ -88,7 +97,10 @@ module Main (C:CONSOLE) (CLK: V1.CLOCK) (S:Cohttp_lwt.Server) = struct
     in
 
     let () =
-        trace_setup ()
+        log_setup ();
+        ignore (Gc.create_alarm log_gc_event);
+        Lwt.async gc_logger;
+        ()
     in
 
     http { S.callback; conn_closed }
