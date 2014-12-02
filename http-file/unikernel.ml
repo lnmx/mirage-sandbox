@@ -4,10 +4,10 @@ open V1_LWT
 
 module Main (C:CONSOLE) (FS:KV_RO) (S:Cohttp_lwt.Server) = struct
 
-  let step = 4096
+  let step = 8192
 
   let read fs path offset length =
-      FS.readfs path offset length
+      FS.read fs path offset length
       >>= function
       | `Error _ -> fail (Failure ("read " ^ path))
       | `Ok buffer -> return (Cstruct.copyv buffer)
@@ -41,7 +41,6 @@ module Main (C:CONSOLE) (FS:KV_RO) (S:Cohttp_lwt.Server) = struct
         let body = Cohttp_lwt_body.of_stream stream in
         let resp = Cohttp.Response.make ~status:`OK () in
         return (resp, body)
-
   end
 
   (* Push buffers into an Lwt stream for Cohttp to consume *)
@@ -63,7 +62,6 @@ module Main (C:CONSOLE) (FS:KV_RO) (S:Cohttp_lwt.Server) = struct
         let resp = Cohttp.Response.make ~status:`OK () in
         let _ = start fs path size send in
         return (resp, body)
-
   end
 
 
