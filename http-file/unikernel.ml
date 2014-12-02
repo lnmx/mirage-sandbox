@@ -4,88 +4,84 @@ open V1_LWT
 
 module Main (C:CONSOLE) (FS:KV_RO) (S:Cohttp_lwt.Server) = struct
 
-  let start c fs http =
+  let step = 4096
 
-    (* Buffer file *)
-
-    let read_file path =
-      FS.size fs path
+  let read fs path offset length =
+      FS.readfs path offset length
       >>= function
-      | `Error (FS.Unknown_key _) -> fail (Failure ("read " ^ path))
-      | `Ok size ->
-        FS.read fs path 0 (Int64.to_int size)
-        >>= function
-        | `Error (FS.Unknown_key _) -> fail (Failure ("read " ^ path))
-        | `Ok buffer -> return (Cstruct.copyv buffer)
-    in
-
-    let serve_file_buffered path =
-      C.log c (Printf.sprintf "serve_file buffered %s" path);
-      read_file path
-      >>= fun body ->
-      S.respond_string ~status:`OK ~body ()
-    in
-
-    (* Stream file, push *)
-
-    let read_file_chunk path offset length =
-      FS.read fs path offset length
-      >>= function
-      | `Error (FS.Unknown_key _) -> fail (Failure ("read " ^ path))
+      | `Error _ -> fail (Failure ("read " ^ path))
       | `Ok buffer -> return (Cstruct.copyv buffer)
-    in
 
-    let rec push_reader path offset step push =
-        read_file_chunk path offset step 
-        >>= function
-        | "" -> return (push None)
-        | buf -> (push (Some buf)); push_reader path (offset+step) step push
-    in
 
-    let start_push_reader path step push =
-        Lwt.async (fun () -> push_reader path 0 step push);
-        1
-    in
+  (* Read the entire file and return it as a response *)
+  module Fserv_full = struct
 
-    let serve_file_stream_push path =
-      C.log c (Printf.sprintf "serve_file stream_push %s" path);
-      FS.size fs path
-      >>= function
-      | `Error (FS.Unknown_key _) -> fail (Failure ("read " ^ path))
-      | `Ok size ->
-        let (stream, push) = Lwt_stream.create () in
+    let serve c fs path size =
+        C.log c (Printf.sprintf "fserv_full %s" path);
+        read fs path 0 size
+        >>= fun body ->
+        let resp = Cohttp.Response.make ~status:`OK () in
+        return (resp, `String body)
+  end
+
+  (* Cohttp pulls buffers as needed through an Lwt stream *)
+  module Fserv_stream_pull = struct
+
+    let pull fs path size step =
+        let offset = ref 0 in
+        fun () ->
+          read fs path !offset step
+          >>= function
+          | "" -> return None
+          | buf -> offset := !offset + step; return (Some buf)
+
+    let serve c fs path size =
+        C.log c (Printf.sprintf "fserv_stream_pull %s" path);
+        let stream = Lwt_stream.from (pull fs path size step) in
         let body = Cohttp_lwt_body.of_stream stream in
         let resp = Cohttp.Response.make ~status:`OK () in
-        let _ = start_push_reader path 4096 push in
         return (resp, body)
-    in
 
-    (* Stream file, pull *)
+  end
 
-    let pull_reader path step =
-      let offset = ref 0 in
-      fun () ->
-        read_file_chunk path !offset step
+  (* Push buffers into an Lwt stream for Cohttp to consume *)
+  module Fserv_stream_push = struct
+
+    let rec copy fs path size offset step send =
+        read fs path offset step
         >>= function
-        | "" -> return None
-        | buf -> offset := !offset + step; return (Some buf)
-    in
+        | "" -> return (send None)
+        | buf -> (send (Some buf)); copy fs path size (offset+step) step send
 
-    let serve_file_stream_pull path =
-      C.log c (Printf.sprintf "serve_file stream_pull %s" path);
-      let step = 4096 in
-      let stream = Lwt_stream.from (pull_reader path step) in
-      let body = Cohttp_lwt_body.of_stream stream in
-      let resp = Cohttp.Response.make ~status:`OK () in
-      return (resp, body)
+    let start fs path size send =
+        Lwt.async (fun () -> copy fs path size 0 step send)
+
+    let serve c fs path size =
+        C.log c (Printf.sprintf "fserv_stream_push %s" path);
+        let (stream, send) = Lwt_stream.create () in
+        let body = Cohttp_lwt_body.of_stream stream in
+        let resp = Cohttp.Response.make ~status:`OK () in
+        let _ = start fs path size send in
+        return (resp, body)
+
+  end
+
+
+  let start c fs http =
+
+    let check_file path =
+      FS.size fs path
+      >>= function
+      | `Error _ -> fail (Failure ("read " ^ path))
+      | `Ok size -> return (Int64.to_int size)
     in
 
     let serve_file mode path =
+      lwt size = check_file path in
       match mode with
-        | Some "push" -> serve_file_stream_push path
-        | Some "pull" -> serve_file_stream_pull path
-        | Some "buff" -> serve_file_buffered path
-        | _ -> serve_file_buffered path
+        | Some "push"     -> Fserv_stream_push.serve c fs path size
+        | Some "pull"     -> Fserv_stream_pull.serve c fs path size
+        | Some "full" | _ -> Fserv_full.serve c fs path size
     in
 
     let handler request body =
