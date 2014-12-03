@@ -4,8 +4,6 @@ open V1_LWT
 
 module Main (C:CONSOLE) (FS:KV_RO) (S:Cohttp_lwt.Server) = struct
 
-  let step = 8192
-
   let read fs path offset length =
       FS.read fs path offset length
       >>= function
@@ -17,7 +15,7 @@ module Main (C:CONSOLE) (FS:KV_RO) (S:Cohttp_lwt.Server) = struct
   module Fserv_full = struct
 
     let serve c fs path size =
-        C.log c (Printf.sprintf "fserv_full %s" path);
+        C.log c (Printf.sprintf "fserv_full %s %d %d" path size size);
         read fs path 0 size
         >>= fun body ->
         let resp = Cohttp.Response.make ~status:`OK () in
@@ -35,8 +33,8 @@ module Main (C:CONSOLE) (FS:KV_RO) (S:Cohttp_lwt.Server) = struct
           | "" -> return None
           | buf -> offset := !offset + step; return (Some buf)
 
-    let serve c fs path size =
-        C.log c (Printf.sprintf "fserv_stream_pull %s" path);
+    let serve c fs path size step =
+        C.log c (Printf.sprintf "fserv_stream_pull %s %d %d" path size step);
         let stream = Lwt_stream.from (pull fs path size step) in
         let body = Cohttp_lwt_body.of_stream stream in
         let resp = Cohttp.Response.make ~status:`OK () in
@@ -52,15 +50,15 @@ module Main (C:CONSOLE) (FS:KV_RO) (S:Cohttp_lwt.Server) = struct
         | "" -> return (send None)
         | buf -> (send (Some buf)); copy fs path size (offset+step) step send
 
-    let start fs path size send =
+    let start fs path size step send =
         Lwt.async (fun () -> copy fs path size 0 step send)
 
-    let serve c fs path size =
-        C.log c (Printf.sprintf "fserv_stream_push %s" path);
+    let serve c fs path size step =
+        C.log c (Printf.sprintf "fserv_stream_push %s %d %d" path size step);
         let (stream, send) = Lwt_stream.create () in
         let body = Cohttp_lwt_body.of_stream stream in
         let resp = Cohttp.Response.make ~status:`OK () in
-        let _ = start fs path size send in
+        let _ = start fs path size step send in
         return (resp, body)
   end
 
@@ -74,11 +72,21 @@ module Main (C:CONSOLE) (FS:KV_RO) (S:Cohttp_lwt.Server) = struct
       | `Ok size -> return (Int64.to_int size)
     in
 
-    let serve_file mode path =
+    let parse_step str default = 
+      match str with
+      | None -> default
+      | Some s -> try
+          Int32.to_int (Int32.of_string s)
+        with _ -> default
+    in
+
+    let serve_file path mode step =
+      let step_default = 1024 in
+      let step = parse_step step step_default in
       lwt size = check_file path in
       match mode with
-        | Some "push"     -> Fserv_stream_push.serve c fs path size
-        | Some "pull"     -> Fserv_stream_pull.serve c fs path size
+        | Some "push"     -> Fserv_stream_push.serve c fs path size step
+        | Some "pull"     -> Fserv_stream_pull.serve c fs path size step
         | Some "full" | _ -> Fserv_full.serve c fs path size
     in
 
@@ -86,7 +94,8 @@ module Main (C:CONSOLE) (FS:KV_RO) (S:Cohttp_lwt.Server) = struct
       try_lwt
         let path = Uri.path (S.Request.uri request) in
         let mode = Uri.get_query_param (S.Request.uri request) "mode" in
-        serve_file mode path
+        let step = Uri.get_query_param (S.Request.uri request) "step" in
+        serve_file path mode step
       with exn ->
         S.respond_not_found ()
     in
